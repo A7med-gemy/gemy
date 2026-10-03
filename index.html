@@ -773,18 +773,8 @@ function plan4h(sym, k, price) {
     }
   }
 
-  // [FIX] إذا منطقة الدخول بعيدة عن السعر بـ > 1%، لا تعرض "دخول مباشر"
-  plans.forEach(p => {
-    if (p.z && p.status === 'direct') {
-      const en = (p.z[0] + p.z[1]) / 2;
-      const dist = Math.abs(en / price - 1) * 100;
-      if (dist > 1) {
-        p.status = 'wait';
-        p.statusLabel = 'انتظار';
-        p.note = `منطقة الدخول بعيدة عن السعر بـ ${dist.toFixed(2)}% — انتظر اقتراب السعر.`;
-      }
-    }
-  });    if (!plans.length) {
+  plans.forEach(p => { if (p.z && p.sl != null && p.tp2 != null) { const en = (p.z[0] + p.z[1]) / 2, risk = Math.abs(en - p.sl); if (risk > 0) { p.rr = Math.abs(p.tp2 - en) / risk; p.tp1 = (en + p.tp2) / 2; } } });
+    if (!plans.length) {
     plans.push({
       t: 'لا توجد خطة دخول واضحة',
       z: null, sl: null, tp1: null, tp2: null, rr: 0,
@@ -1094,10 +1084,8 @@ function sweepFvg(k) {
   b.tp = tg != null ? tg : Math.max(...k.slice(-30).map(v => v.h));
   const r = b.ce - b.stop;
   b.rr = r > 0 ? (b.tp - b.ce) / r : 0;
-// السعر يجب أن يكون فعلاً داخل الفجوة
-b.state = (P >= z[0] && P <= z[1]) ? 'داخل الفجوة ✅'
-  : P > z[1] ? 'فوق الفجوة (فائت)'
-  : 'تحت الفجوة — انتظر';  return b;
+  b.state = P >= z[0] * .998 && P <= z[1] ? 'داخل منطقة الدخول الآن ✅' : P > z[1] ? (P / z[1] - 1 < .02 ? 'قريب' : 'ابتعد') : 'أسفل الفجوة';
+  return b;
 }
 
 function adv(k) {
@@ -1266,18 +1254,9 @@ function showAdv(a) {
   let h = `<div class="pl"><b>🔬 المؤشرات المتقدمة · 4H</b><div class="tiles">${T('MACD · Signal · Hist', pq(a.ind.m) + ' · ' + pq(a.ind.g) + ' · ' + pq(a.ind.h))}${T('تقاطع MACD', mc.cross == 'bull' ? 'صاعد' : mc.cross == 'bear' ? 'هابط' : 'لا يوجد', dc(mc.cross))}${T('RSI(14)', a.live.rsi.toFixed(1), a.live.rsi >= 70 ? 'dn' : a.live.rsi <= 30 ? 'up' : '')}${T('Bollinger', bbs(a))}${T('BandWidth', bb.w.toFixed(1) + '%')}${T('TTM Squeeze', bb.sq ? 'مضغوط' : bb.exp ? 'انطلاق صاعد ⚡' : bb.rel ? 'انطلاق هابط' : 'لا ضغط', bb.sq || bb.exp ? 'up' : bb.rel ? 'dn' : '')}${T('POC', f(X.vp.poc) + ' (' + pcs((P / X.vp.poc - 1) * 100) + ')', P >= X.vp.poc ? 'up' : 'dn')}${T('VAL–VAH', f(X.vp.val) + ' – ' + f(X.vp.vah))}${T('CMF(20)', X.acc.cmf.toFixed(2), X.acc.cmf > .05 ? 'up' : X.acc.cmf < -.05 ? 'dn' : '')}${T('ADX(14)', X.acc.adx == null ? '–' : X.acc.adx.toFixed(0))}${T('شروط التجميع', X.acc.sc / 25 + ' / 4', X.acc.sc >= 75 ? 'up' : '')}</div>`;
   h += X.acc.t.length ? `<div class="mut">التجميع: ${X.acc.t.join(' · ')}</div>` : '';
   h += ev.length ? `<div style="margin-top:6px"><b>تباعد RSI:</b> ` + ev.map(d => `<span class="b" style="background:${DVC[d.type]}33;color:${DVC[d.type]}">${DVN[d.type][1]}</span> <span class="mut">سعر ${f(d.p1)}→${f(d.p2)} · RSI ${d.r1.toFixed(0)}→${d.r2.toFixed(0)}</span>`).join('<br>') + '</div>' : '<div class="mut" style="margin-top:6px">لا يوجد تباعد RSI حديث.</div>';
-   if (s) {
-    const dist = (s.ce / P - 1) * 100;
-    const dir = s.dir === 'bear' ? 'هابطة' : 'صاعدة';
-    const swDir = s.dir === 'bear' ? 'فوق' : 'تحت';
-    const distWarn = Math.abs(dist) > 0.5
-      ? `<br><span style="color:#f5b53d">⚠ الدخول ${dist > 0 ? 'أعلى' : 'أقل'} من السعر بـ ${Math.abs(dist).toFixed(2)}% — انتظر</span>`
-      : '';
-    const rrWarn = s.rr < 1.5 ? `<br><span style="color:#ef4444">⚠ R:R ضعيف (${s.rr.toFixed(1)}) — لا يستحق</span>` : '';
-    h += `<div style="margin-top:6px"><b>🎯 Sweep + FVG:</b> سحب سيولة ${swDir} ${f(s.sw)} (ذيل ${f(s.low)}) ثم فجوة ${dir} <b>${f(s.z[0])} – ${f(s.z[1])}</b> · الحالة: <b>${s.state}</b><br>الدخول عند CE ≈ <b>${f(s.ce)}</b> (${dist > 0 ? '+' : ''}${dist.toFixed(2)}% من السعر) · وقف <span class="dn">${f(s.stop)}</span> · هدف <span class="up">${f(s.tp)}</span> · R:R ${s.rr.toFixed(1)} · قبل ${s.age * 4} ساعة${distWarn}${rrWarn}</div>`;
-  } else {
-    h += `<div class="mut" style="margin-top:6px">🎯 لا يوجد Sweep + FVG حديث.</div>`;
-  }
+  h += s ? `<div style="margin-top:6px"><b>🎯 Sweep + FVG:</b> سحب سيولة تحت ${f(s.sw)} (ذيل ${f(s.low)}) ثم فجوة صاعدة <b>${f(s.z[0])} – ${f(s.z[1])}</b> · الحالة: <b>${s.state}</b><br>الدخول عند CE ≈ <b>${f(s.ce)}</b> · وقف <span class="dn">${f(s.stop)}</span> · هدف <span class="up">${f(s.tp)}</span> · R:R ${s.rr.toFixed(1)} · قبل ${s.age * 4} ساعة</div>` : `<div class="mut" style="margin-top:6px">🎯 لا يوجد Sweep + FVG حديث.</div>`;
+  $('card').insertAdjacentHTML('beforeend', h + '</div>');
+}
 
 // ============ رادار السيولة اللحظي (WebSocket: شموع 1د + صفقات aggTrade) ============
 const BAD = /(UP|DOWN|BULL|BEAR)USDT$/, STB = /^(USDC|FDUSD|TUSD|USDP|DAI|EUR|AEUR|USD1|XUSD)USDT$/;
