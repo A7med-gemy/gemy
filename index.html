@@ -1084,7 +1084,9 @@ function sweepFvg(k) {
   b.tp = tg != null ? tg : Math.max(...k.slice(-30).map(v => v.h));
   const r = b.ce - b.stop;
   b.rr = r > 0 ? (b.tp - b.ce) / r : 0;
-  b.state = P >= z[0] * .998 && P <= z[1] ? 'داخل منطقة الدخول الآن ✅' : P > z[1] ? (P / z[1] - 1 < .02 ? 'قريب' : 'ابتعد') : 'أسفل الفجوة';
+  b.state = (P >= z[0] && P <= z[1]) ? 'داخل الفجوة ✅'
+    : P > z[1] ? 'فوق الفجوة (فائت)'
+    : 'تحت الفجوة — انتظر';
   return b;
 }
 
