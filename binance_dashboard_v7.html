@@ -618,8 +618,12 @@ function plan4h(sym, k, price) {
   const plans = [];
 
   if (m) {
-    const isLong = m.up && m.dir != 'هابط';
-    const isShort = m.dn && m.dir != 'صاعد';
+   let isLong = false, isShort = false;
+    if (m.brk === 'up' && m.up) isLong = true;
+    else if (m.brk === 'dn' && m.dn) isShort = true;
+    else if (m.dir === 'صاعد' && m.up) isLong = true;
+    else if (m.dir === 'هابط' && m.dn) isShort = true;
+    else if (m.dir === 'ثنائي') { if (m.up) isLong = true; if (m.dn) isShort = true; }
 
     if (isLong) {
       const o = m.up;
