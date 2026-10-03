@@ -22,7 +22,16 @@ canvas{width:100%;height:660px;touch-action:pan-y;cursor:crosshair;display:block
 #card{margin-bottom:8px}#card ul{margin:4px 0;padding-inline-start:18px}#card a{color:var(--b)}.pl{margin-top:10px;border-top:1px solid var(--bd);padding-top:8px;line-height:1.8}.pl table{margin:6px 0}#st{color:var(--mut);font-size:12px}
 body{background:radial-gradient(1100px 480px at 85% -10%,#1b2a4a66,transparent),var(--bg)}
 .hd h1{font-size:22px;margin:0}.hd small{color:var(--mut)}.hd{margin-bottom:12px}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:10px;margin-bottom:12px}.kpi{background:linear-gradient(180deg,#182036,#121724);border:1px solid var(--bd);border-radius:12px;padding:10px 12px}.kpi span{display:block;color:var(--mut);font-size:11px;margin-bottom:2px}.kpi b{font-size:20px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:10px;margin-bottom:12px}.kpi{background:linear-gradient(180deg,#182036,#121724);border:1px solid var(--bd);border-radius:12px;padding:10px 12px}.kpi span{display:block;color:var(--mut);font-size:11px;margin-bottom:2px}.kpi b{font-size:20px}.kpi-clickable{cursor:pointer;transition:all .15s;position:relative}
+.kpi-clickable:hover{transform:translateY(-2px);border-color:var(--b);box-shadow:0 4px 12px #4f8cff33}
+.kpi-clickable small{font-size:11px;margin-inline-start:4px;opacity:.6}
+.kpi-modal{position:fixed;inset:0;background:#000a;z-index:9999;display:none;align-items:center;justify-content:center;padding:20px}
+.kpi-modal.on{display:flex}
+.kpi-modal-inner{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;max-width:900px;width:100%;max-height:80vh;overflow:auto;box-shadow:0 20px 60px #000c}
+.kpi-modal-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--bd)}
+.kpi-modal-hd h3{margin:0;font-size:17px}
+.kpi-modal-close{background:transparent;border:1px solid var(--bd);color:var(--tx);width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:18px;line-height:1}
+.kpi-modal-close:hover{background:#ef444422;border-color:var(--r);color:var(--r)}
 .bar{position:sticky;top:0;z-index:9;backdrop-filter:blur(10px);background:#131824ee}.card{border-radius:12px;box-shadow:0 4px 20px #0006}.card>b{font-size:15px}
 th{font-size:11px;letter-spacing:.03em}.sec{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}.live{width:9px;height:9px;border-radius:50%;background:var(--g);animation:pl 1.4s infinite}@keyframes pl{50%{opacity:.2}}
 .ctl{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px}.ctl input{width:auto}details.card{margin-top:12px}details summary{cursor:pointer;font-weight:600}details li{margin:4px 0;line-height:1.7}
@@ -56,7 +65,16 @@ td.n{direction:ltr;text-align:right;unicode-bidi:isolate}#tb td:nth-child(n+3):n
   </div>
   <div><div class="card" style="margin-bottom:12px"><b>🔔 سجل تنبيهات السيولة</b> <span id="wss" class="mut">جارٍ الاتصال</span><div id="lv" class="mut">بيتم رصد أي عملة تدخلها سيولة غير معتادة مع صعود سعري هادئ…</div></div><div class="card"><b>سجل الأحداث</b><div id="ev" class="mut">لا أحداث بعد</div></div></div>
 </div>
-<details class="card"><summary>📐 المعادلات المعتمدة والمراجع (للتحقق من الأرقام)</summary><ul>
+<div id="kpiModal" class="kpi-modal">
+  <div class="kpi-modal-inner">
+    <div class="kpi-modal-hd">
+      <h3 id="kpiModalTitle">—</h3>
+      <button class="kpi-modal-close" onclick="closeKpiModal()">✕</button>
+    </div>
+    <div id="kpiModalBody"></div>
+  </div>
+</div>
+  <details class="card"><summary>📐 المعادلات المعتمدة والمراجع (للتحقق من الأرقام)</summary><ul>
 <li><b>RSI(14):</b> تمهيد Wilder (RMA، α=1/14، بذرة SMA). <b>EMA:</b> α=2/(n+1) بذرة SMA. <b>MACD(12,26,9):</b> Appel. <b>ATR(14):</b> Wilder. <b>Bollinger(20,2):</b> σ للمجتمع (÷n). <b>Volume Profile:</b> 24 صفًا/120 شمعة، VA 70%.</li>
 <li><b>تباعد RSI/MACD:</b> pivots على المؤشر (lbL=lbR=5)، مسافة 5–60 شمعة.</li>
 <li><b>التجميع الخفي:</b> ADX(14) &lt; 25 + CMF(20) &gt; 0.05 + A/D صاعد خلال 30 شمعة + OBV صاعد.</li>
@@ -1325,17 +1343,43 @@ function kpi(t, o) {
     br = u.filter(x => +x.priceChangePercent > 0).length / u.length * 100,
     g = s => { const x = t.find(y => y.symbol == s); return x ? +x.priceChangePercent : 0; },
     A = Object.values(o).filter(a => a.x),
-    K = (l, v, c = '') => `<div class="kpi"><span>${l}</span><b class="${c}">${v}</b></div>`;
+    K = (l, v, c = '', filter = null) => `<div class="kpi${filter ? ' kpi-clickable' : ''}"${filter ? ` data-filter="${filter}"` : ''}><span>${l}</span><b class="${c}">${v}</b>${filter ? ' <small class="mut">🔍</small>' : ''}</div>`;
   $('kpis').innerHTML =
     K('BTC 24س', pcs(g('BTCUSDT')), g('BTCUSDT') >= 0 ? 'up' : 'dn') +
     K('ETH 24س', pcs(g('ETHUSDT')), g('ETHUSDT') >= 0 ? 'up' : 'dn') +
     K('اتساع السوق', br.toFixed(0) + '% صاعدة', br >= 50 ? 'up' : 'dn') +
-    K('READY', A.filter(a => a.st == 'READY').length, 'up') +
-    K('LAUNCHED', A.filter(a => a.st == 'LAUNCHED').length) +
-    K('تجميع خفي', A.filter(a => a.x.acc.sc >= 55).length, 'up') +
-    K('Sweep+FVG', A.filter(a => a.x.sw && a.x.sw.state.includes('✅')).length, 'up') +
-    K('TTM Squeeze', A.filter(a => a.x.bb.sq).length);
+    K('READY', A.filter(a => a.st == 'READY').length, 'up', 'ready') +
+    K('LAUNCHED', A.filter(a => a.st == 'LAUNCHED').length, '', 'launched') +
+    K('تجميع خفي', A.filter(a => a.x.acc.sc >= 55).length, 'up', 'accum') +
+    K('Sweep+FVG', A.filter(a => a.x.sw && a.x.sw.state.includes('✅')).length, 'up', 'sweep') +
+    K('TTM Squeeze', A.filter(a => a.x.bb.sq).length, '', 'squeeze');
 }
+
+// ============ Modal عرض العملات المفلترة ============
+function openKpiModal(filter) {
+  const A = Object.values(res).filter(a => a.x);
+  let list = [], title = '';
+  if (filter === 'ready') { list = A.filter(a => a.st === 'READY'); title = '🟦 READY — ' + list.length + ' عملة'; }
+  else if (filter === 'launched') { list = A.filter(a => a.st === 'LAUNCHED'); title = '🟢 LAUNCHED — ' + list.length + ' عملة'; }
+  else if (filter === 'accum') { list = A.filter(a => a.x.acc.sc >= 55); title = '🕵️ تجميع خفي — ' + list.length + ' عملة'; }
+  else if (filter === 'sweep') { list = A.filter(a => a.x.sw && a.x.sw.state.includes('✅')); title = '🎯 Sweep + FVG — ' + list.length + ' عملة'; }
+  else if (filter === 'squeeze') { list = A.filter(a => a.x.bb.sq); title = '📦 TTM Squeeze — ' + list.length + ' عملة'; }
+  $('kpiModalTitle').textContent = title;
+  if (!list.length) {
+    $('kpiModalBody').innerHTML = '<div class="mut" style="text-align:center;padding:30px">لا توجد عملة تحقق هذا الشرط حاليًا</div>';
+  } else {
+    list.sort((a, b) => ((watch.has(b.sym) ? 1 : 0) - (watch.has(a.sym) ? 1 : 0)) || b.score - a.score);
+    $('kpiModalBody').innerHTML = `<table style="min-width:100%"><thead><tr><th></th><th>العملة</th><th>السعر</th><th>24س</th><th>زخم</th><th>شراء%</th><th>الحالة</th><th>تفاصيل</th></tr></thead><tbody>${list.map(a => {
+      const extra = filter === 'accum' ? `${a.x.acc.sc / 25}/4 شروط` : filter === 'sweep' ? `${a.x.sw ? (a.x.sw.dir === 'bear' ? 'هابط' : 'صاعد') : ''} · ${a.x.sw ? a.x.sw.state : ''}` : filter === 'squeeze' ? `${a.x.bb.sq ? 'مضغوط' : a.x.bb.exp ? 'انطلاق' : ''} · BW ${a.x.bb.w.toFixed(1)}%` : '—';
+      return `<tr class="row" data-s="${a.sym}" onclick="open4h('${a.sym}');closeKpiModal();"><td><button class="s" data-w="${a.sym}" onclick="event.stopPropagation();(function(){const w='${a.sym}';watch.has(w)?watch.delete(w):watch.add(w);save();render();})()">${watch.has(a.sym) ? '⭐' : '☆'}</button></td><td><b>${a.sym.replace('USDT', '')}</b></td><td class="n">${fmt(a.price)}</td><td class="n ${a.ch >= 0 ? 'up' : 'dn'}">${a.ch.toFixed(1)}%</td><td class="n">×${a.spike.toFixed(1)}</td><td class="n ${a.buy >= .55 ? 'up' : ''}">${(a.buy * 100).toFixed(0)}%</td><td>${a.st ? `<span class="b ${a.st}">${a.st}</span>` : '—'}</td><td class="mut" style="font-size:11px">${extra}</td></tr>`;
+    }).join('')}</tbody></table>`;
+  }
+  $('kpiModal').classList.add('on');
+}
+function closeKpiModal() { $('kpiModal').classList.remove('on'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeKpiModal(); });
+$('kpiModal').addEventListener('click', e => { if (e.target.id === 'kpiModal') closeKpiModal(); });
+$('kpis').addEventListener('click', e => { const k = e.target.closest('.kpi-clickable'); if (k && k.dataset.filter) openKpiModal(k.dataset.filter); });
 
 // ===== Nadaraya–Watson Envelope (LuxAlgo) — نواة غاوس w(x)=exp(−x²/2h²)؛ Rational Quadratic اختياري (jdehorty) =====
 // بدون إعادة رسم (Endpoint): out_t = Σ src[t−i]·w(i)/Σ w(i) (الشمعة الحالية والماضي فقط)، mae = SMA(|src−out|, 499)×mult، الغلاف out ± mae
